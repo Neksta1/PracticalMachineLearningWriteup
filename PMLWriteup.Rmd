@@ -1,0 +1,73 @@
+---
+title: "PMLWriteup"
+author: "Moritz Schneider"
+date: "Saturday, December 20, 2014"
+output: html_document
+---
+
+#Assignment
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+\newpage
+
+#Data Cleanup
+
+To begin, we import the data provided for the assignment:
+
+```{r}
+library(caret)
+testdata <- read.csv("./data/pml-testing.csv")
+traindata <- read.csv("./data/pml-training.csv")
+```
+
+Next, we remove all variables with less than 50% valid observations from both data sets.
+
+```{r}
+testdata <- testdata[,colSums(is.na(traindata)) < nrow(traindata)/2] #get rid of na cols
+traindata <- traindata[,colSums(is.na(traindata)) < nrow(traindata)/2] #get rid of na cols
+
+testdata <- testdata[,colSums(traindata == "") < nrow(traindata)/2] # get rid of empty cols
+traindata <- traindata[,colSums(traindata == "") < nrow(traindata)/2] # get rid of empty cols
+```
+
+Let's also get rid of variables with very low variance and also variables that are not related to the execution of the exercise.
+
+```{r}
+testdata <- testdata[,-nearZeroVar(traindata)] # get rid of near zero var cols
+traindata <- traindata[,-nearZeroVar(traindata)] # get rid of near zero var cols
+
+testdata <- testdata[,7:ncol(traindata)] #remove non excercise related vairables
+traindata <- traindata[,7:ncol(traindata)] #remove non excercise related vairables
+```
+
+In the next section we are going to fit our model using the random forest method, this is also the reason why we are no trying to further reduce the number of variables in our data. PCA is a linear mother, so preprocessing with PCA could reduce prediction accuracy for nonlinear methods such as random forests
+
+#Model Fitting
+
+As mentioned earlier, we are going to use the random forests method to fit our model. To estimate the out of sample error we are going to use k-fold cross validation. Our cleaned data sets still have 52 variables, we are therefore limited to 3 fold cross-validation in order to keep the computation time reasonable. Due to the large amount of observations a 3-fold cross validation should still yield a good estimate of the out of sample error.
+
+```{r}
+set.seed(1235) #set seed for consistency
+trctrl <- trainControl(method = "cv", number = 3, allowParallel = TRUE) 
+modelnopc <- train(classe~., data = traindata, method = "rf", trControl = trctrl, prox=FALSE) 
+modelnopc
+```
+
+Let's take the mean from each error to get our out of sample error estimate in [%]
+
+```{r}
+mean(1-modelnopc$results$Accuracy)*100
+```
+
+And here we can see how our final model performs on the entire training data set:
+
+```{r}
+modelnopc$finalModel
+```
+
+Finally, let's see what our final model predicts for the test set, hopefully we are right!
+
+```{r}
+predict(modelnopc, testdata)
+```
